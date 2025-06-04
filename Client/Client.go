@@ -1,8 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"net"
+	"os"
+	"strings"
 )
 
 func main() {
@@ -13,5 +16,16 @@ func main() {
 	}
 	defer conn.Close()
 
-	fmt.Println("Connected to server successfully.")
+	// fmt.Println("Connected to server successfully.")
+	reader := bufio.NewReader(os.Stdin)
+	for {
+		fmt.Print("Enter message: ")
+		message, _ := reader.ReadString('\n')
+		message = strings.TrimSpace(message)
+		if message == "exit" {
+			fmt.Println("Exiting the program...")
+			break
+		}
+		fmt.Fprintf(conn, message+"\n")
+	}
 }
