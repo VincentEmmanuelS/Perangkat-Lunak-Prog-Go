@@ -4,12 +4,13 @@ import (
 	"bufio"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 )
 
 // Map untuk menyimpan koleksi client yg aktif
 var (
-	clients   = make(map[net.Conn]bool)
+	clients   = make(map[net.Conn]string)
 	clientsMu sync.Mutex
 )
 
@@ -30,11 +31,10 @@ func main() {
 			continue
 		}
 
-		// add client ke daftar clients aktif
-		// di protect Mutex
-		clientsMu.Lock()
-		clients[conn] = true
-		clientsMu.Unlock()
+		// add client ke daftar clients aktif di protect Mutex
+		// clientsMu.Lock()
+		// clients[conn] = true
+		// clientsMu.Unlock()
 
 		fmt.Printf("Client connected: %s\n", conn.RemoteAddr().String())
 		go handleClient(conn) // handle comms client pada goroutine terpisah
@@ -44,17 +44,40 @@ func main() {
 
 // Handle setiap client
 func handleClient(conn net.Conn) {
+	reader := bufio.NewReader(conn)
+
+	// read username dari client
+	username, err := checkUsername(conn, reader)
+	if err != nil {
+		conn.Close()
+		return
+	}
+	// username = strings.TrimSpace(username)
+
+	// simpan username dari client
+	clientsMu.Lock()
+	clients[conn] = username
+	clientsMu.Unlock()
+
+	fmt.Printf("%s connected\n", username)
+	// send notif ke client, ketika ada client baru yang connect
+	formattedNotif := fmt.Sprintf("%s jumped in!\n", username)
+	broadcastMessage(conn, formattedNotif)
+
 	// defer anonymous class -> dieksekusi ketika client disconnect
 	defer func() {
 		clientsMu.Lock()
 		delete(clients, conn) // hapus client dari daftar aktif
 		clientsMu.Unlock()
 		conn.Close() // tutup koneksi
-		fmt.Printf("Client disconnected: %s\n", conn.RemoteAddr().String())
-	}()
+		// fmt.Printf("Client disconnected: %s\n", conn.RemoteAddr().String())
+		fmt.Printf("%s disconnected\n", username)
 
+		// send notif ke client, ketika ada client baru yang disconnect
+		formattedNotif := fmt.Sprintf("%s has left!\n", username)
+		broadcastMessage(conn, formattedNotif)
+	}()
 	// defer conn.Close()
-	reader := bufio.NewReader(conn)
 
 	for {
 		// read message dari client
@@ -67,8 +90,49 @@ func handleClient(conn net.Conn) {
 		}
 		// fmt.Printf("Received message from %s: %s", conn.RemoteAddr().String(), message)
 
+		if message == "" {
+			continue // abaikan pesan kosong
+		}
+
 		// broadcast message ke semua client selain sender
-		broadcastMessage(conn, message)
+		formattedMsg := fmt.Sprintf("%s: %s", username, message)
+		broadcastMessage(conn, formattedMsg)
+	}
+}
+
+func checkUsername(conn net.Conn, reader *bufio.Reader) (string, error) {
+	_, err := conn.Write([]byte("Enter username:\n"))
+	if err != nil {
+		return "", err
+	}
+	for {
+
+		username, err := reader.ReadString('\n')
+		if err != nil {
+			return "", err
+		}
+		username = strings.TrimSpace(username)
+
+		if username == "" {
+			conn.Write([]byte("Username cannot be empty.\n"))
+		} else {
+			clientsMu.Lock()
+			isTaken := false
+			for _, existUsername := range clients {
+				if existUsername == username {
+					isTaken = true
+					break
+				}
+			}
+			clientsMu.Unlock()
+
+			if isTaken {
+				conn.Write([]byte("Username is already taken, try another one. Enter username:\n"))
+			} else {
+				conn.Write([]byte("Welcome, type \"exit\" to close the program.\n"))
+				return username, nil
+			}
+		}
 	}
 }
 
