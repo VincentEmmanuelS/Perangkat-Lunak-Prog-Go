@@ -18,7 +18,7 @@ func main() {
 	defer conn.Close()
 	// fmt.Println("Connected to server successfully.")
 
-	// input username
+	// reader untuk baca input username
 	reader := bufio.NewReader(os.Stdin)
 	// fmt.Print("Enter username: ")
 	// username, _ := reader.ReadString('\n')
@@ -27,8 +27,11 @@ func main() {
 	// 	fmt.Println("Invalid username")
 	// 	return
 	// }
+
+	// reader untuk baca koneksi server
 	connReader := bufio.NewReader(conn)
 
+	// looping untuk cek username availability sampai username accept
 	for {
 		// read message dari server -> "Enter username: ""
 		serverMsg, err := connReader.ReadString('\n')
@@ -38,10 +41,11 @@ func main() {
 		}
 		fmt.Print(serverMsg)
 
+		// baca username
 		username, _ := reader.ReadString('\n')
 		username = strings.TrimSpace(username)
 
-		fmt.Fprintf(conn, username+"\n")
+		fmt.Fprintf(conn, username+"\n") // send username ke server
 
 		// peek, _ := connReader.Peek(16) // check server data sebesar 16 byte
 		// if !strings.HasPrefix(string(peek), "Username is alre") && !strings.HasPrefix(string(peek), "Enter username") {
@@ -55,9 +59,12 @@ func main() {
 		// }
 		// fmt.Print(response)
 
+		// cek apakah server masih meminta username
 		if !strings.HasPrefix(serverMsg, "Username is already taken, try another one. Enter username:") && !strings.HasPrefix(serverMsg, "Enter username:") {
 			break
 		} else {
+			// break state(?)
+			// kalau ga ada jadi error -> masih harus di fix
 			break
 		}
 	}

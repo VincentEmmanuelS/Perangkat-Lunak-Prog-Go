@@ -100,35 +100,43 @@ func handleClient(conn net.Conn) {
 	}
 }
 
+// fungsi untuk validasi username client
 func checkUsername(conn net.Conn, reader *bufio.Reader) (string, error) {
+	// kirim request server message ke client
 	_, err := conn.Write([]byte("Enter username:\n"))
 	if err != nil {
 		return "", err
 	}
-	for {
 
+	for {
+		// baca input username dari client
 		username, err := reader.ReadString('\n')
 		if err != nil {
 			return "", err
 		}
+		// trim spasi di akhir
 		username = strings.TrimSpace(username)
 
+		// case jika username kosong
 		if username == "" {
 			conn.Write([]byte("Username cannot be empty.\n"))
 		} else {
+			// cek semua username yang aktif
 			clientsMu.Lock()
 			isTaken := false
 			for _, existUsername := range clients {
 				if existUsername == username {
-					isTaken = true
+					isTaken = true // username duplikat
 					break
 				}
 			}
 			clientsMu.Unlock()
 
+			// jika username sudah diambil, kirim request ke client, minta username baru
 			if isTaken {
 				conn.Write([]byte("Username is already taken, try another one. Enter username:\n"))
 			} else {
+				// username valid, user bisa masuk ke sistem chat
 				conn.Write([]byte("Welcome, type \"exit\" to close the program.\n"))
 				return username, nil
 			}
