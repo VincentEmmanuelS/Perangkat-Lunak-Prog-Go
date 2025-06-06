@@ -119,7 +119,7 @@ func checkUsername(conn net.Conn, reader *bufio.Reader) (string, error) {
 
 		// case jika username kosong
 		if username == "" {
-			conn.Write([]byte("Username cannot be empty.\n"))
+			conn.Write([]byte("Username cannot be empty. Enter username:\n"))
 		} else {
 			// cek semua username yang aktif
 			clientsMu.Lock()
