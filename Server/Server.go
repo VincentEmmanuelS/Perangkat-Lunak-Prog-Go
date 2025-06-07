@@ -8,162 +8,177 @@ import (
 	"sync"
 )
 
-// Map untuk menyimpan koleksi client yg aktif
+type Room struct {
+	name    string
+	clients map[net.Conn]string
+}
+
 var (
-	clients   = make(map[net.Conn]string)
-	clientsMu sync.Mutex
+	rooms   = make(map[string]*Room)
+	roomsMu sync.Mutex
 )
 
 func main() {
-	listener, err := net.Listen("tcp", ":2000") // buka listener
+	listener, err := net.Listen("tcp", ":2000")
 	if err != nil {
 		fmt.Println("Error starting server:", err)
 		return
 	}
 	defer listener.Close()
-	fmt.Println("Server started. Waiting for clients...")
+	fmt.Println("Server listening on port 2000...")
 
-	// accept koneksi dari client
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			fmt.Println("Error accepting connection:", err)
+			fmt.Println("Connection error:", err)
 			continue
 		}
-
-		// add client ke daftar clients aktif di protect Mutex
-		// clientsMu.Lock()
-		// clients[conn] = true
-		// clientsMu.Unlock()
-
-		fmt.Printf("Client connected: %s\n", conn.RemoteAddr().String())
-		go handleClient(conn) // handle comms client pada goroutine terpisah
-		// conn.Close() // langsung tutup koneksi, hanya untuk cek koneksi saja
+		go handleClient(conn)
 	}
 }
 
-// Handle setiap client
 func handleClient(conn net.Conn) {
+	defer conn.Close()
 	reader := bufio.NewReader(conn)
-
-	// read username dari client
-	username, err := checkUsername(conn, reader)
+	conn.Write([]byte("Enter your username:\n"))
+	username, err := reader.ReadString('\n')
 	if err != nil {
-		conn.Close()
 		return
 	}
-	// username = strings.TrimSpace(username)
+	username = strings.TrimSpace(username)
 
-	// simpan username dari client
-	clientsMu.Lock()
-	clients[conn] = username
-	clientsMu.Unlock()
-
-	fmt.Printf("%s connected\n", username)
-	// send notif ke client, ketika ada client baru yang connect
-	formattedNotif := fmt.Sprintf("%s jumped in!\n", username)
-	broadcastMessage(conn, formattedNotif)
-
-	// defer anonymous class -> dieksekusi ketika client disconnect
-	defer func() {
-		clientsMu.Lock()
-		delete(clients, conn) // hapus client dari daftar aktif
-		clientsMu.Unlock()
-		conn.Close() // tutup koneksi
-		// fmt.Printf("Client disconnected: %s\n", conn.RemoteAddr().String())
-		fmt.Printf("%s disconnected\n", username)
-
-		// send notif ke client, ketika ada client baru yang disconnect
-		formattedNotif := fmt.Sprintf("%s has left!\n", username)
-		broadcastMessage(conn, formattedNotif)
-	}()
-	// defer conn.Close()
+	var currentRoom *Room
+	conn.Write([]byte("Type /create <room>, /join <room>, or /exit:\n"))
 
 	for {
-		// read message dari client
-		message, err := reader.ReadString('\n')
+		input, err := reader.ReadString('\n')
 		if err != nil {
-			// Client disconnected or error
-			// fmt.Printf("Client disconnected: %s\n", conn.RemoteAddr().String())
-			// return
-			break
+			return
 		}
-		// fmt.Printf("Received message from %s: %s", conn.RemoteAddr().String(), message)
+		input = strings.TrimSpace(input)
 
-		if message == "" {
-			continue // abaikan pesan kosong
-		}
-
-		// broadcast message ke semua client selain sender
-		formattedMsg := fmt.Sprintf("%s: %s", username, message)
-		broadcastMessage(conn, formattedMsg)
-	}
-}
-
-// fungsi untuk validasi username client
-func checkUsername(conn net.Conn, reader *bufio.Reader) (string, error) {
-	// kirim request server message ke client
-	_, err := conn.Write([]byte("Enter username:\n"))
-	if err != nil {
-		return "", err
-	}
-
-	for {
-		// baca input username dari client
-		username, err := reader.ReadString('\n')
-		if err != nil {
-			return "", err
-		}
-		// trim spasi di akhir
-		username = strings.TrimSpace(username)
-
-		// case jika username kosong
-		if username == "" {
-			conn.Write([]byte("Username cannot be empty. Enter username:\n"))
-		} else {
-			// cek semua username yang aktif
-			clientsMu.Lock()
-			isTaken := false
-			for _, existUsername := range clients {
-				if existUsername == username {
-					isTaken = true // username duplikat
-					break
-				}
-			}
-			clientsMu.Unlock()
-
-			// jika username sudah diambil, kirim request ke client, minta username baru
-			if isTaken {
-				conn.Write([]byte("Username is already taken, try another one. Enter username:\n"))
+		if strings.HasPrefix(input, "/create ") {
+			roomName := strings.TrimSpace(strings.TrimPrefix(input, "/create "))
+			currentRoom = createRoom(roomName)
+			if currentRoom != nil {
+				joinRoom(currentRoom, conn, username)
+				break
 			} else {
-				// username valid, user bisa masuk ke sistem chat
-				conn.Write([]byte("Welcome, type \"exit\" to close the program.\n"))
-				return username, nil
+				conn.Write([]byte("Room already exists. Try another name.\n"))
 			}
+
+		} else if strings.HasPrefix(input, "/join ") {
+			roomName := strings.TrimSpace(strings.TrimPrefix(input, "/join "))
+			currentRoom = joinExistingRoom(roomName, conn, username)
+			if currentRoom != nil {
+				break
+			}
+
+		} else if input == "/exit" {
+			return
+
+		} else if input == "/rooms" {
+			listRooms(conn)
+		} else {
+			conn.Write([]byte("Unknown command. Use /create <room>, /join <room>, /rooms, or /exit\n"))
+		}
+	}
+
+	// Message loop
+	for {
+		msg, err := reader.ReadString('\n')
+		if err != nil {
+			leaveRoom(currentRoom, conn, username)
+			return
+		}
+		msg = strings.TrimSpace(msg)
+
+		if msg == "/leave" {
+			leaveRoom(currentRoom, conn, username)
+			conn.Write([]byte("You left the room. Use /create or /join again.\n"))
+			handleClient(conn)
+			return
+
+		} else if msg == "/exit" {
+			leaveRoom(currentRoom, conn, username)
+			return
+
+		} else if msg != "" {
+			broadcastToRoom(currentRoom, conn, fmt.Sprintf("%s: %s\n", username, msg))
 		}
 	}
 }
 
-// fungsi untuk broadcast message
-func broadcastMessage(sender net.Conn, message string) {
-	clientsMu.Lock()
-	defer clientsMu.Unlock()
+func createRoom(name string) *Room {
+	roomsMu.Lock()
+	defer roomsMu.Unlock()
 
-	// cek untuk semua client
-	for client := range clients {
-		// jika client bukan sender, send message ke client
+	if _, exists := rooms[name]; exists {
+		return nil
+	}
+	room := &Room{name: name, clients: make(map[net.Conn]string)}
+	rooms[name] = room
+	return room
+}
+
+func joinRoom(room *Room, conn net.Conn, username string) {
+	roomsMu.Lock()
+	defer roomsMu.Unlock()
+
+	room.clients[conn] = username
+	broadcastToRoom(room, conn, fmt.Sprintf("%s joined the room.\n", username))
+	conn.Write([]byte(fmt.Sprintf("Room '%s' joined.\n", room.name)))
+}
+
+func joinExistingRoom(name string, conn net.Conn, username string) *Room {
+	roomsMu.Lock()
+	defer roomsMu.Unlock()
+
+	room, exists := rooms[name]
+	if !exists {
+		conn.Write([]byte("Room not found. Use /create to make a new one.\n"))
+		return nil
+	}
+
+	room.clients[conn] = username
+	broadcastToRoom(room, conn, fmt.Sprintf("%s joined the room.\n", username))
+	conn.Write([]byte(fmt.Sprintf("Room '%s' joined.\n", room.name)))
+	return room
+}
+
+func leaveRoom(room *Room, conn net.Conn, username string) {
+	roomsMu.Lock()
+	defer roomsMu.Unlock()
+
+	if room != nil {
+		delete(room.clients, conn)
+		broadcastToRoom(room, conn, fmt.Sprintf("%s left the room.\n", username))
+		if len(room.clients) == 0 {
+			delete(rooms, room.name)
+		}
+	}
+}
+
+func broadcastToRoom(room *Room, sender net.Conn, message string) {
+	for client := range room.clients {
 		if client != sender {
-			_, err := client.Write([]byte(message))
-
-			// error jika koneksi ke client terputus
-			if err != nil {
-				client.Close()
-				delete(clients, client)
-			}
+			client.Write([]byte(message))
 		}
 	}
 }
 
-/*
-note: pas client join notif sama coms ada bug
-*/
+func listRooms(conn net.Conn) {
+	roomsMu.Lock()
+	defer roomsMu.Unlock()
+
+	if len(rooms) == 0 {
+		conn.Write([]byte("No rooms available.\n"))
+		return
+	}
+
+	var roomList []string
+	for name := range rooms {
+		roomList = append(roomList, name)
+	}
+	conn.Write([]byte("Available rooms: " + strings.Join(roomList, ", ") + "\n"))
+}
