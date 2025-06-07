@@ -63,7 +63,9 @@ func main() {
 		if !strings.HasPrefix(serverMsg, "Username is already taken, try another one. Enter username:") && !strings.HasPrefix(serverMsg, "Enter username:") {
 			break
 		} else {
-			continue
+			/*DO NOT CHANGE -> THIS CAN MAKE AN ISSUE*/
+			// continue // error kalau continue
+			break
 		}
 	}
 
