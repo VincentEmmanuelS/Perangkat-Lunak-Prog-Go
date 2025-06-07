@@ -163,3 +163,7 @@ func broadcastMessage(sender net.Conn, message string) {
 		}
 	}
 }
+
+/*
+note: pas client join notif sama coms ada bug
+*/
