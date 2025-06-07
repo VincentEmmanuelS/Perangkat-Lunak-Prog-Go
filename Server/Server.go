@@ -31,14 +31,8 @@ func main() {
 			continue
 		}
 
-		// add client ke daftar clients aktif di protect Mutex
-		// clientsMu.Lock()
-		// clients[conn] = true
-		// clientsMu.Unlock()
-
 		fmt.Printf("Client connected: %s\n", conn.RemoteAddr().String())
 		go handleClient(conn) // handle comms client pada goroutine terpisah
-		// conn.Close() // langsung tutup koneksi, hanya untuk cek koneksi saja
 	}
 }
 
@@ -84,8 +78,6 @@ func handleClient(conn net.Conn) {
 		message, err := reader.ReadString('\n')
 		if err != nil {
 			// Client disconnected or error
-			// fmt.Printf("Client disconnected: %s\n", conn.RemoteAddr().String())
-			// return
 			break
 		}
 		// fmt.Printf("Received message from %s: %s", conn.RemoteAddr().String(), message)
