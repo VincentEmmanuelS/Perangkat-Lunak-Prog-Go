@@ -43,11 +43,14 @@ func main() {
 		// cek apakah server masih meminta username
 		if !strings.HasPrefix(serverMsg, "Username is already taken, try another one. Enter username:") && !strings.HasPrefix(serverMsg, "Enter username:") {
 			break
-		} else {
-			/*DO NOT CHANGE -> THIS CAN MAKE AN ISSUE*/
-			// continue // error kalau continue
-			break
 		}
+		break
+
+		// if strings.HasPrefix(serverMsg, "Available room:") {
+		// 	/*DO NOT CHANGE -> THIS CAN MAKE AN ISSUE*/
+		// 	// continue // error kalau continue
+		// 	break
+		// }
 	}
 
 	// send username ke server
@@ -83,7 +86,7 @@ func main() {
 		}
 
 		// jika user ketik "exit", keluar dari program -> sementara aja kyknya(?)
-		if message == "exit" {
+		if message == "/exit" {
 			fmt.Println("Exiting the program...")
 			break
 		}
