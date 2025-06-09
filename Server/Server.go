@@ -19,7 +19,7 @@ type Client struct {
 type Room struct {
 	name    string
 	clients map[*Client]bool
-	mu      sync.Mutex
+	// mu      sync.Mutex
 }
 
 // Map untuk menyimpan koleksi client yg aktif
@@ -121,10 +121,11 @@ func handleClient(client *Client) {
 				roomName := strings.TrimSpace(strings.TrimPrefix(message, "/create "))
 				// fmt.Println(roomName)
 				client.createRoom(roomName)
+				client.joinRoom(roomName)
 				// fmt.Printf("%s create %s\n", client.name, client.room.name)
 				continue
 			} else if strings.HasPrefix(message, "/join ") {
-				roomName := strings.TrimSpace(strings.TrimPrefix(message, "/create "))
+				roomName := strings.TrimSpace(strings.TrimPrefix(message, "/join "))
 				client.joinRoom(roomName)
 				// fmt.Printf("%s join %s\n", client.name, client.room.name)
 				continue
@@ -333,9 +334,15 @@ func (c *Client) createRoom(name string) {
 		rooms[name] = room
 		fmt.Println(rooms[name])
 		c.conn.Write([]byte("Room created: " + name + "\n"))
+
+		// // auto join rooms
+		// room.addClient(c) // Join the new room
+		// c.room = room
+		// c.conn.Write([]byte("Joined room: " + name + "\n"))
 	} else {
 		c.conn.Write([]byte("Room already exists: " + name + "\n"))
 	}
+
 }
 
 // join room by name
@@ -378,8 +385,8 @@ func (c *Client) joinRoom(name string) {
 
 // menambahkan client ke room
 func (r *Room) addClient(client *Client) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	// r.mu.Lock()
+	// defer r.mu.Unlock()
 
 	r.clients[client] = true
 	fmt.Printf("%s join %s\n", client.name, r.name)
@@ -388,8 +395,8 @@ func (r *Room) addClient(client *Client) {
 
 // mengeluarkan client dari room
 func (r *Room) removeClient(client *Client) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	// r.mu.Lock()
+	// defer r.mu.Unlock()
 
 	fmt.Printf("%s left %s\n", client.name, client.room.name)
 	delete(r.clients, client)
@@ -398,8 +405,8 @@ func (r *Room) removeClient(client *Client) {
 
 // broadcast message di dalam room kecuali ke sender
 func (r *Room) broadcast(sender *Client, message string) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	// r.mu.Lock()
+	// defer r.mu.Unlock()
 
 	for client := range r.clients {
 		if client != sender {
