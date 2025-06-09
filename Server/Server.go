@@ -19,7 +19,7 @@ type Client struct {
 type Room struct {
 	name    string
 	clients map[*Client]bool
-	// mu      sync.Mutex
+	mu      sync.Mutex
 }
 
 // Map untuk menyimpan koleksi client yg aktif
@@ -385,8 +385,8 @@ func (c *Client) joinRoom(name string) {
 
 // menambahkan client ke room
 func (r *Room) addClient(client *Client) {
-	// r.mu.Lock()
-	// defer r.mu.Unlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
 	r.clients[client] = true
 	fmt.Printf("%s join %s\n", client.name, r.name)
@@ -395,8 +395,8 @@ func (r *Room) addClient(client *Client) {
 
 // mengeluarkan client dari room
 func (r *Room) removeClient(client *Client) {
-	// r.mu.Lock()
-	// defer r.mu.Unlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
 	fmt.Printf("%s left %s\n", client.name, client.room.name)
 	delete(r.clients, client)
@@ -405,9 +405,6 @@ func (r *Room) removeClient(client *Client) {
 
 // broadcast message di dalam room kecuali ke sender
 func (r *Room) broadcast(sender *Client, message string) {
-	// r.mu.Lock()
-	// defer r.mu.Unlock()
-
 	for client := range r.clients {
 		if client != sender {
 			_, err := client.conn.Write([]byte(message))
