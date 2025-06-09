@@ -39,22 +39,9 @@ func main() {
 		username = strings.TrimSpace(username)
 
 		fmt.Fprintf(conn, username+"\n") // send username ke server
-
-		// cek apakah server masih meminta username
-		if !strings.HasPrefix(serverMsg, "Username is already taken, try another one. Enter username:") && !strings.HasPrefix(serverMsg, "Enter username:") {
-			break
-		}
 		break
 
-		// if strings.HasPrefix(serverMsg, "Available room:") {
-		// 	/*DO NOT CHANGE -> THIS CAN MAKE AN ISSUE*/
-		// 	// continue // error kalau continue
-		// 	break
-		// }
 	}
-
-	// send username ke server
-	// fmt.Fprintf(conn, username+"\n")
 
 	// Goroutine untuk menerima dan menampilkan pesan dari server
 	go func() {
@@ -75,7 +62,6 @@ func main() {
 	}()
 
 	// input dari user untuk dikirim ke server
-	// reader := bufio.NewReader(os.Stdin)
 	for {
 		// fmt.Print("Enter message: ")
 		message, _ := reader.ReadString('\n')
