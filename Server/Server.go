@@ -6,6 +6,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"strconv"
 )
 
 // struct client buat chat room
@@ -18,6 +19,7 @@ type Client struct {
 // Chat room struct
 type Room struct {
 	name    string           // room name
+	size 	int 	  			 // max size
 	clients map[*Client]bool // list client di dalam room
 	mu      sync.Mutex       // mutex untuk map Room.clients
 }
@@ -105,7 +107,7 @@ func handleClient(client *Client) {
 
 	client.conn.Write([]byte("====================\n"))
 	client.conn.Write([]byte("Commands: \n"))
-	client.conn.Write([]byte("/create <room_name>\n"))
+	client.conn.Write([]byte("/create <room_name> [room_size]\n"))
 	client.conn.Write([]byte("/join <room_name>\n"))
 	client.conn.Write([]byte("/roomlist\n"))
 	client.conn.Write([]byte("/exit\n"))
@@ -130,15 +132,22 @@ func handleClient(client *Client) {
 		if strings.HasPrefix(message, "/create ") {
 			// create room baru
 			roomName := strings.TrimSpace(strings.TrimPrefix(message, "/create "))
+			words := strings.Split(roomName, " ")
+			size := -1
+			roomName = words[0]
 
 			// Validasi -> tidak boleh ada spasi untuk nama room
-			if strings.Contains(roomName, " ") {
-				client.conn.Write([]byte("> Room name cannot contain spaces. Use underscores (_) or a single word.\n"))
-				client.conn.Write([]byte("\n"))
-				continue
+			if len(words) > 1  {
+				if num, err := strconv.Atoi(words[1]); err != nil || len(words) > 2{
+					client.conn.Write([]byte("> Room name cannot contain spaces. Use underscores (_) or a single word.\n"))
+					client.conn.Write([]byte("\n"))
+					continue
+				} else {
+					size = num
+				}
 			}
 
-			client.createRoom(roomName)
+			client.createRoom(roomName, size)
 			broadcastMessage(client, "> New room '"+roomName+"' is created!\n")
 			client.joinRoom(roomName)
 			// fmt.Printf("%s create %s\n", client.name, client.room.name)
@@ -278,13 +287,22 @@ func listRooms(client *Client) {
 	}
 
 	// print semua room name
-	for roomName := range rooms {
-		client.conn.Write([]byte("- " + roomName + "\n"))
+	for roomName, room := range rooms {
+		if room.size != -1{
+			client.conn.Write([]byte("- " + roomName + " " + strconv.Itoa(len(room.clients)) + "/" + strconv.Itoa(room.size)))
+		}else {
+			client.conn.Write([]byte("- " + roomName))
+		}
+		// jika client ada di room tersebut
+		if (client.room == room){
+			client.conn.Write([]byte(" <-"))
+		}
+		client.conn.Write([]byte("\n"))
 	}
 }
 
 // create room
-func (c *Client) createRoom(name string) {
+func (c *Client) createRoom(name string, size int) {
 	roomsMu.Lock()
 	defer roomsMu.Unlock()
 
@@ -294,7 +312,8 @@ func (c *Client) createRoom(name string) {
 		// create room
 		room := &Room{
 			name:    name,
-			clients: make(map[*Client]bool),
+			size: 	 size,
+			clients: make(map[*Client]bool, size),
 		}
 		rooms[name] = room
 		// fmt.Println(rooms[name])
@@ -312,14 +331,25 @@ func (c *Client) joinRoom(name string) {
 
 	// cek apakah room ada atau tidak
 	if room, exists := rooms[name]; exists {
-		// jika client sudah berada di 1 room, dan '/join' maka user akan dipindah room ke room yang baru
-		if c.room != nil {
-			c.room.removeClient(c)
-		}
-		room.addClient(c) // join room
-		c.room = room
-		c.conn.Write([]byte("> You have joined " + name + "\n"))
-		c.conn.Write([]byte("> Type '/leave' to leave the chatroom\n"))
+		// cek apakah room sudah penuh
+		if len(room.clients) >= room.size && room.size != -1{
+			c.conn.Write([]byte("> Room is full\n")) 
+		} else {
+			// jika tujuan client adalah room yand dia sedang berada
+			if (c.room == room){
+				c.conn.Write([]byte("> You're already in this room\n"))
+			} else {
+				// jika client sudah berada di 1 room, dan '/join' maka user akan dipindah room ke room yang baru
+				if c.room != nil {
+					c.room.removeClientNoLock(c)
+				}
+
+				room.addClient(c) // join room
+				c.room = room
+				c.conn.Write([]byte("> You have joined " + name + "\n"))
+				c.conn.Write([]byte("> Type '/leave' to leave the chatroom\n"))
+				}
+		}	
 	} else {
 		c.conn.Write([]byte("> Room does not exist\n"))
 	}
@@ -355,6 +385,24 @@ func (r *Room) removeClient(client *Client) {
 	}
 }
 
+func (r *Room) removeClientNoLock(client *Client) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// fmt.Printf("%s left %s\n", client.name, client.room.name)
+	delete(r.clients, client)
+	r.broadcast(client, fmt.Sprintf("> %s has left the room.\n", client.name))
+
+	// jika room kosong, hapus dari map global `rooms`
+	if len(r.clients) == 0 {
+		// no lock here
+		delete(rooms, r.name)
+		delete(rooms, r.name)
+
+		broadcastMessage(nil, "> Room '"+r.name+"' is deleted, because no one is in this room.\n")
+	}
+}
+
 // broadcast message di dalam room kecuali ke sender
 func (r *Room) broadcast(sender *Client, message string) {
 	for client := range r.clients {
@@ -369,3 +417,26 @@ func (r *Room) broadcast(sender *Client, message string) {
 		}
 	}
 }
+
+// ---------------------------------------------------------------------------
+
+// log: 09/06/2025 (author nathan)
+
+// change note: 
+// line 22: add attribute "size int" to struct room
+// line 134: validation condition changed for room size parameter
+// modify listroom to print current num of client in the room / cap
+// modify createroom to take in size as parameter
+
+// to do: 
+// add default mode to not input size for create room so it's infinite
+// modify UI for better description (menu and listroom)
+// testing + debug for degenerate cases
+
+// -----------------------------------------------------------------------------
+
+// log: 10/06/2025 (author Nathan)
+
+// - deadlock found in /join if you're in a room, made a seperate remove clien func with no roomMu.lock
+// - edit UI: add an arrow to pointout which room you're located in roomlist, change command syntax for create room (optional room cap)
+// - handle rejoining a room you're already inside in
