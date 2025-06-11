@@ -4,9 +4,9 @@ import (
 	"bufio"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
-	"strconv"
 )
 
 // struct client buat chat room
@@ -18,10 +18,11 @@ type Client struct {
 
 // Chat room struct
 type Room struct {
-	name    string           // room name
-	size 	int 	  			 // max size
-	clients map[*Client]bool // list client di dalam room
-	mu      sync.Mutex       // mutex untuk map Room.clients
+	name     string           // room name
+	size     int              // max size
+	clients  map[*Client]bool // list client di dalam room
+	mu       sync.Mutex       // mutex untuk map Room.clients
+	password string           // password untuk room (kosong jika tidak ada)
 }
 
 // Map untuk menyimpan koleksi client yg aktif
@@ -107,8 +108,8 @@ func handleClient(client *Client) {
 
 	client.conn.Write([]byte("====================\n"))
 	client.conn.Write([]byte("Commands: \n"))
-	client.conn.Write([]byte("/create <room_name> [room_size]\n"))
-	client.conn.Write([]byte("/join <room_name>\n"))
+	client.conn.Write([]byte("/create <room_name> [room_size] [password] or /create <room_name> [password]\n"))
+	client.conn.Write([]byte("/join <room_name> [password]\n"))
 	client.conn.Write([]byte("/roomlist\n"))
 	client.conn.Write([]byte("/exit\n"))
 	client.conn.Write([]byte("====================\n"))
@@ -130,32 +131,68 @@ func handleClient(client *Client) {
 
 		// chatroom commands
 		if strings.HasPrefix(message, "/create ") {
-			// create room baru
-			roomName := strings.TrimSpace(strings.TrimPrefix(message, "/create "))
-			words := strings.Split(roomName, " ")
+			// command dibagi menjadi part-part
+			parts := strings.Fields(strings.TrimPrefix(message, "/create "))
+			if len(parts) < 1 {
+				client.conn.Write([]byte("> Invalid command. Use: /create <room_name> [room_size] [password]\n"))
+				continue
+			}
+			roomName := parts[0]
 			size := -1
-			roomName = words[0]
+			password := ""
 
-			// Validasi -> tidak boleh ada spasi untuk nama room
-			if len(words) > 1  {
-				if num, err := strconv.Atoi(words[1]); err != nil || len(words) > 2{
-					client.conn.Write([]byte("> Room name cannot contain spaces. Use underscores (_) or a single word.\n"))
-					client.conn.Write([]byte("\n"))
-					continue
-				} else {
+			// Validasi nama room
+			if len(parts) > 3 {
+				client.conn.Write([]byte("> Invalid command format. Use: /create <room_name> [room_size] [password]\n"))
+				continue
+			}
+
+			if strings.Contains(roomName, " ") || roomName == "" {
+				client.conn.Write([]byte("> Invalid room name. Use a single word without spaces.\n"))
+				continue
+			}
+
+			// Parse ukuran room (jika ada) atau password berdasarkan argumen (part) ke dua
+			if len(parts) >= 2 {
+				if num, err := strconv.Atoi(parts[1]); err == nil {
+					// part ke dua adalah size dari room
+					if num == 0 || num < -1 {
+						client.conn.Write([]byte("> Invalid room size. Must be a positive number.\n"))
+						continue
+					}
 					size = num
+					// cek jika part ke 3 adalah password
+					if len(parts) == 3 {
+						password = parts[2]
+					}
+				} else {
+					// part ke dua bukan angka, maka diperlakukan sebagai password
+					if len(parts) == 3 {
+						client.conn.Write([]byte("> Invalid command format. If size is omitted, only password is allowed.\n"))
+						continue
+					}
+					password = parts[1]
 				}
 			}
 
-			client.createRoom(roomName, size)
+			client.createRoom(roomName, size, password)
 			broadcastMessage(client, "> New room '"+roomName+"' is created!\n")
-			client.joinRoom(roomName)
+			client.joinRoom(roomName, password)
 			// fmt.Printf("%s create %s\n", client.name, client.room.name)
 			continue
 		} else if strings.HasPrefix(message, "/join ") {
+			parts := strings.Fields(strings.TrimPrefix(message, "/join "))
+			if len(parts) < 1 {
+				client.conn.Write([]byte("> Invalid command. Use: /join <room_name> [password]\n"))
+				continue
+			}
 			// join available room
-			roomName := strings.TrimSpace(strings.TrimPrefix(message, "/join "))
-			client.joinRoom(roomName)
+			roomName := parts[0]
+			password := ""
+			if len(parts) > 1 {
+				password = parts[1]
+			}
+			client.joinRoom(roomName, password)
 			// fmt.Printf("%s join %s\n", client.name, client.room.name)
 			continue
 		} else if message == "/roomlist" {
@@ -180,8 +217,8 @@ func handleClient(client *Client) {
 
 				client.conn.Write([]byte("====================\n"))
 				client.conn.Write([]byte("Commands: \n"))
-				client.conn.Write([]byte("/create <room_name>\n"))
-				client.conn.Write([]byte("/join <room_name>\n"))
+				client.conn.Write([]byte("/create <room_name> [room_size] [password] or /create <room_name> [password]\n"))
+				client.conn.Write([]byte("/join <room_name> [password]\n"))
 				client.conn.Write([]byte("/roomlist\n"))
 				client.conn.Write([]byte("/exit\n"))
 				client.conn.Write([]byte("====================\n"))
@@ -288,21 +325,29 @@ func listRooms(client *Client) {
 
 	// print semua room name
 	for roomName, room := range rooms {
-		if room.size != -1{
-			client.conn.Write([]byte("- " + roomName + " " + strconv.Itoa(len(room.clients)) + "/" + strconv.Itoa(room.size)))
-		}else {
-			client.conn.Write([]byte("- " + roomName))
+		//(delete aja komen ini) gw jadi make status biar keliatan di /roomlist, room tersebut ada password atau engga
+		var status string
+		if room.size != -1 {
+			status = fmt.Sprintf("%d/%d", len(room.clients), room.size)
 		}
+
+		if room.password != "" {
+			if status != "" {
+				status += " "
+			}
+			status += "(password protected)"
+		}
+		line := fmt.Sprintf("- %s %s", roomName, status)
 		// jika client ada di room tersebut
-		if (client.room == room){
+		if client.room == room {
 			client.conn.Write([]byte(" <-"))
 		}
-		client.conn.Write([]byte("\n"))
+		client.conn.Write([]byte(line + "\n"))
 	}
 }
 
 // create room
-func (c *Client) createRoom(name string, size int) {
+func (c *Client) createRoom(name string, size int, password string) {
 	roomsMu.Lock()
 	defer roomsMu.Unlock()
 
@@ -311,9 +356,10 @@ func (c *Client) createRoom(name string, size int) {
 	if _, exists := rooms[name]; !exists {
 		// create room
 		room := &Room{
-			name:    name,
-			size: 	 size,
-			clients: make(map[*Client]bool, size),
+			name:     name,
+			size:     size,
+			clients:  make(map[*Client]bool, size),
+			password: password,
 		}
 		rooms[name] = room
 		// fmt.Println(rooms[name])
@@ -325,31 +371,45 @@ func (c *Client) createRoom(name string, size int) {
 }
 
 // join room by name
-func (c *Client) joinRoom(name string) {
+func (c *Client) joinRoom(name string, providedPassword string) {
 	roomsMu.Lock()
 	defer roomsMu.Unlock()
 
 	// cek apakah room ada atau tidak
 	if room, exists := rooms[name]; exists {
-		// cek apakah room sudah penuh
-		if len(room.clients) >= room.size && room.size != -1{
-			c.conn.Write([]byte("> Room is full\n")) 
-		} else {
-			// jika tujuan client adalah room yand dia sedang berada
-			if (c.room == room){
-				c.conn.Write([]byte("> You're already in this room\n"))
-			} else {
-				// jika client sudah berada di 1 room, dan '/join' maka user akan dipindah room ke room yang baru
-				if c.room != nil {
-					c.room.removeClientNoLock(c)
-				}
+		// cek apakah pengguna dalam room yang sama (ini dipindah kesini biar ngecek kalo orang create room make password terus dia ketik /join room tersebut keadaan masih didalam room itu (dengan atau tanpa password) munculnya pesan ini, bukan pesan incorrect password.)
+		// jika tujuan client adalah room yand dia sedang berada
+		if c.room == room {
+			c.conn.Write([]byte("> You're already in this room.\n"))
+			return
+		}
+		// validasi ukuran room (tidak ada negatif)
+		if room.size != -1 && (room.size <= 0) {
+			c.conn.Write([]byte("> Room has invalid configuration.\n"))
+			return
+		}
 
-				room.addClient(c) // join room
-				c.room = room
-				c.conn.Write([]byte("> You have joined " + name + "\n"))
-				c.conn.Write([]byte("> Type '/leave' to leave the chatroom\n"))
-				}
-		}	
+		// cek apakah room memiliki password
+		if room.password != "" && room.password != providedPassword {
+			c.conn.Write([]byte("> Incorrect password.\n"))
+			return
+		}
+
+		// cek apakah room sudah penuh
+		if len(room.clients) >= room.size && room.size != -1 {
+			c.conn.Write([]byte("> Room is full.\n"))
+		} else {
+			// jika client sudah berada di 1 room, dan '/join' maka user akan dipindah room ke room yang baru
+			if c.room != nil {
+				c.room.removeClientNoLock(c)
+			}
+
+			room.addClient(c) // join room
+			c.room = room
+			c.conn.Write([]byte("> You have joined " + name + "\n"))
+			c.conn.Write([]byte("> Type '/leave' to leave the chatroom\n"))
+
+		}
 	} else {
 		c.conn.Write([]byte("> Room does not exist\n"))
 	}
@@ -422,13 +482,13 @@ func (r *Room) broadcast(sender *Client, message string) {
 
 // log: 09/06/2025 (author nathan)
 
-// change note: 
+// change note:
 // line 22: add attribute "size int" to struct room
 // line 134: validation condition changed for room size parameter
 // modify listroom to print current num of client in the room / cap
 // modify createroom to take in size as parameter
 
-// to do: 
+// to do:
 // add default mode to not input size for create room so it's infinite
 // modify UI for better description (menu and listroom)
 // testing + debug for degenerate cases
@@ -440,3 +500,13 @@ func (r *Room) broadcast(sender *Client, message string) {
 // - deadlock found in /join if you're in a room, made a seperate remove clien func with no roomMu.lock
 // - edit UI: add an arrow to pointout which room you're located in roomlist, change command syntax for create room (optional room cap)
 // - handle rejoining a room you're already inside in
+
+// -------------------------------------------------------------------------------
+
+// log: 11/06/2025 (author Jensen)
+
+// - nambah validasi buat size room (tidak ada nilai negatif)
+// - ngubah joinRoom, cek yang "You're already in this room"
+// - update listRooms buat ngedisplay size room sama password status (kalau ada)
+// - ngubah /create command (/create <room_name> [room_size] [password] or /create <room_name> [password])
+// - nambahin sedikit di client.go buat ngehandle /join yang ada password
