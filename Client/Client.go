@@ -57,19 +57,9 @@ func main() {
 		username = strings.TrimSpace(username)
 
 		fmt.Fprintf(conn, username+"\n") // send username ke server
+		break
 
-		// cek apakah server masih meminta username
-		if !strings.HasPrefix(serverMsg, "Username is already taken, try another one. Enter username:") && !strings.HasPrefix(serverMsg, "Enter username:") {
-			break
-		} else {
-			/*DO NOT CHANGE -> THIS CAN MAKE AN ISSUE*/
-			// continue // error kalau continue
-			break
-		}
 	}
-
-	// send username ke server
-	// fmt.Fprintf(conn, username+"\n")
 
 	// Goroutine untuk menerima dan menampilkan pesan dari server
 	go func() {
@@ -90,7 +80,6 @@ func main() {
 	}()
 
 	// input dari user untuk dikirim ke server
-	// reader := bufio.NewReader(os.Stdin)
 	for {
 		// fmt.Print("Enter message: ")
 		message, _ := reader.ReadString('\n')
@@ -101,9 +90,25 @@ func main() {
 		}
 
 		// jika user ketik "exit", keluar dari program -> sementara aja kyknya(?)
-		if message == "exit" {
+		if message == "/exit" {
 			fmt.Println("Exiting the program...")
 			break
+		}
+
+		// handle perintah /join dengan password
+		if strings.HasPrefix(message, "/join ") {
+			parts := strings.Fields(message)
+			if len(parts) < 2 {
+				fmt.Println("> Invalid command. Use: /join <room_name> [password]")
+				continue
+			}
+			roomName := parts[1]
+			password := ""
+			if len(parts) > 2 {
+				password = parts[2]
+			}
+			fmt.Fprintf(conn, "/join %s %s\n", roomName, password)
+			continue
 		}
 
 		// send message ke server
