@@ -23,10 +23,6 @@ Dibuat untuk memenuhi tugas besar mata kuliah **AIF233131 Pemrograman Go**.
 
 - Server berjalan secara default di alamat `localhost:8080`.
 - Untuk uji coba lokal, client dapat dijalankan di beberapa terminal berbeda.
-- Proyek ini bersifat **open-source** dan dapat dikembangkan lebih lanjut untuk menambahkan fitur seperti:
-  - Private chat (whisper)
-  - Otentikasi pengguna
-  - Penyimpanan histori chat
 
 ---
 
