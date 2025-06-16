@@ -77,6 +77,22 @@ func main() {
 			break
 		}
 
+		// handle perintah /join dengan password
+		if strings.HasPrefix(message, "/join ") {
+			parts := strings.Fields(message)
+			if len(parts) < 2 {
+				fmt.Println("> Invalid command. Use: /join <room_name> [password]")
+				continue
+			}
+			roomName := parts[1]
+			password := ""
+			if len(parts) > 2 {
+				password = parts[2]
+			}
+			fmt.Fprintf(conn, "/join %s %s\n", roomName, password)
+			continue
+		}
+
 		// send message ke server
 		fmt.Fprintf(conn, message+"\n")
 	}
