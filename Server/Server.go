@@ -269,7 +269,7 @@ func broadcastMessage(sender *Client, message string) {
 // fungsi untuk validasi username client
 func checkUsername(conn net.Conn, reader *bufio.Reader) (string, error) {
 	// kirim request server message ke client
-	_, err := conn.Write([]byte("Enter username:\n"))
+	_, err := conn.Write([]byte("> Enter username:\n"))
 	if err != nil {
 		return "", err
 	}
