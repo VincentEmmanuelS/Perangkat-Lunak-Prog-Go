@@ -1,3 +1,21 @@
+/*
+Dibuat untuk memenuhi tugas besar mata kuliah AIF233131 Pemrograman Go
+
+Kelompok B:
+@Author Vincent Emmanuel Suwardy
+@Contributor Michael William Iswadi
+@Contributor Stanislaus Nathan
+@Contributor Jensen Hiem
+*/
+
+/* Referensi:
+- https://pkg.go.dev/net
+- https://go.dev/blog/defer-panic-and-recover
+- https://www.w3schools.com/go/
+- https://www.slingacademy.com/article/using-the-net-package-for-low-level-network-programming-in-go/
+- Semua slide kuliah
+*/
+
 package main
 
 import (
