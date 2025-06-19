@@ -2,15 +2,18 @@
 Dibuat untuk memenuhi tugas besar mata kuliah AIF233131 Pemrograman Go
 
 Kelompok B:
-@Author Vincent Emmanuel Suwardy
-@Contributor Michael William Iswadi
-@Contributor Stanislaus Nathan
-@Contributor Jensen Hiem
+@Author Vincent Emmanuel Suwardy / 6182201067
+@Contributor Michael William Iswadi / 6182201019
+@Contributor Stanislaus Nathan / 6182201092
+@Contributor Jensen Hiem / 6182201026
 */
 
 /* Referensi:
 - https://pkg.go.dev/net
 - https://go.dev/blog/defer-panic-and-recover
+- https://pkg.go.dev/strconv
+- https://pkg.go.dev/strings
+- https://pkg.go.dev/sync
 - https://www.w3schools.com/go/
 - https://www.slingacademy.com/article/using-the-net-package-for-low-level-network-programming-in-go/
 - Semua slide kuliah

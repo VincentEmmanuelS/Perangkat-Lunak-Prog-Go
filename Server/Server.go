@@ -2,15 +2,18 @@
 Dibuat untuk memenuhi tugas besar mata kuliah AIF233131 Pemrograman Go
 
 Kelompok B:
-@Author Vincent Emmanuel Suwardy
-@Contributor Michael William Iswadi
-@Contributor Stanislaus Nathan
-@Contributor Jensen Hiem
+@Author Vincent Emmanuel Suwardy / 6182201067
+@Contributor Michael William Iswadi / 6182201019
+@Contributor Stanislaus Nathan / 6182201092
+@Contributor Jensen Hiem / 6182201026
 */
 
 /* Referensi:
 - https://pkg.go.dev/net
 - https://go.dev/blog/defer-panic-and-recover
+- https://pkg.go.dev/strconv
+- https://pkg.go.dev/strings
+- https://pkg.go.dev/sync
 - https://www.w3schools.com/go/
 - https://www.slingacademy.com/article/using-the-net-package-for-low-level-network-programming-in-go/
 - Semua slide kuliah
@@ -174,8 +177,8 @@ func handleClient(client *Client) {
 			if len(parts) >= 2 {
 				if num, err := strconv.Atoi(parts[1]); err == nil {
 					// part ke dua adalah size dari room
-					if num == 0 || num < -1 {
-						client.conn.Write([]byte("> Invalid room size. Must be a positive number.\n"))
+					if num < 2 {
+						client.conn.Write([]byte("> Invalid room size. Must be at least 2.\n"))
 						continue
 					}
 					size = num
@@ -194,7 +197,7 @@ func handleClient(client *Client) {
 			}
 
 			client.createRoom(roomName, size, password)
-			broadcastMessage(client, "> New room '"+roomName+"' is created!\n")
+			// broadcastMessage(client, "> New room '"+roomName+"' is created!\n")
 			client.joinRoom(roomName, password)
 			// fmt.Printf("%s create %s\n", client.name, client.room.name)
 			continue
@@ -356,11 +359,14 @@ func listRooms(client *Client) {
 			status += "(password protected)"
 		}
 		line := fmt.Sprintf("- %s %s", roomName, status)
+		client.conn.Write([]byte(line))
+
 		// jika client ada di room tersebut
 		if client.room == room {
 			client.conn.Write([]byte(" <-"))
 		}
-		client.conn.Write([]byte(line + "\n"))
+
+		client.conn.Write([]byte("\n"))
 	}
 }
 
@@ -382,6 +388,7 @@ func (c *Client) createRoom(name string, size int, password string) {
 		rooms[name] = room
 		// fmt.Println(rooms[name])
 		c.conn.Write([]byte("> Room " + name + " created!\n"))
+		broadcastMessage(c, "> New room '"+name+"' is created!\n")
 	} else {
 		c.conn.Write([]byte("> Room " + name + " is already exists\n"))
 	}
@@ -498,7 +505,7 @@ func (r *Room) broadcast(sender *Client, message string) {
 
 // ---------------------------------------------------------------------------
 
-// log: 09/06/2025 (author nathan)
+// log: 09/06/2025 (author Nathan)
 
 // change note:
 // line 22: add attribute "size int" to struct room
@@ -528,3 +535,11 @@ func (r *Room) broadcast(sender *Client, message string) {
 // - update listRooms buat ngedisplay size room sama password status (kalau ada)
 // - ngubah /create command (/create <room_name> [room_size] [password] or /create <room_name> [password])
 // - nambahin sedikit di client.go buat ngehandle /join yang ada password
+
+// -------------------------------------------------------------------------------
+
+// log: 18/06/2025 (author Vincent & Michael)
+
+// - fix arrow symbol when use /roomlist
+// - min value for room cap to be created change to at least 2
+// - fix notify (if room already exist, do not notify to all 'new room is created')
