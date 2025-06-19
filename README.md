@@ -47,6 +47,9 @@ Dibuat untuk memenuhi tugas besar mata kuliah **AIF233131 Pemrograman Go**.
 ## Referensi
 
 - [Go 'net' Documentation](https://pkg.go.dev/net)
+- [Go 'sync' Documentation](https://pkg.go.dev/sync) 
+- [Go 'strconv' Documentation](https://pkg.go.dev/strconv)
+- [Go 'strings' Documentation](https://pkg.go.dev/strings)
 - [Go 'Defer, Panic, and Recover' Documentation](https://go.dev/blog/defer-panic-and-recover)
 - [Go Documentation by w3schools](https://www.w3schools.com/go/)
 - [Go 'net' Documentation by Sling Academy](https://www.slingacademy.com/article/using-the-net-package-for-low-level-network-programming-in-go/)
